@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Carteira de Investimentos</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f1117">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Carteira">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <meta name="description" content="Gerencie sua carteira de FIIs, Ações e Renda Fixa com cotações em tempo real">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <div class="brand-icon">INV</div>
+            <span>Carteira de Investimentos</span>
+        </div>
+        <div class="nav-right">
+            <span class="update-time" id="lastUpdate">Última atualização: --</span>
+            <button class="btn btn-outline btn-sm" id="btnRefresh" title="Atualizar cotações">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                Atualizar
+            </button>
+            <button class="btn btn-outline btn-sm" id="btnConfig" title="Configurar API">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            </button>
+        </div>
+    </nav>
+
+    <div class="tabs-bar">
+        <button class="tab active" data-tab="dashboard">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Dashboard
+        </button>
+        <button class="tab" data-tab="fiis">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 21V10M10 21V10M14 21V10M18 21V10M12 3l9 4H3z"/></svg>
+            Fundos Imobiliários
+        </button>
+        <button class="tab" data-tab="acoes">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+            Ações
+        </button>
+        <button class="tab" data-tab="rendafixa">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a4 4 0 00-8 0v2"/><circle cx="12" cy="14" r="2"/></svg>
+            Renda Fixa
+        </button>
+        <button class="tab" data-tab="ia">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v2h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V10a2 2 0 012-2h2V6a4 4 0 014-4z"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/><path d="M9 18h6"/></svg>
+            IA de Aporte
+        </button>
+    </div>
+
+    <main class="container">
+        <section id="tokenBanner" class="token-banner" style="display:none">
+            Configure seu token gratuito da brapi.dev para buscar cotações em tempo real.
+            <button class="btn btn-sm btn-outline" id="btnSetupToken">Configurar Token</button>
+        </section>
+
+        <!-- DASHBOARD -->
+        <div id="page-dashboard" class="page active">
+            <section class="summary-cards">
+                <div class="card summary-card accent-blue">
+                    <div class="card-label">Patrimônio Total</div>
+                    <div class="card-value" id="dash-patrimonio">R$ 0,00</div>
+                    <div class="card-sub" id="dash-variacao"></div>
+                </div>
+                <div class="card summary-card accent-green">
+                    <div class="card-label">Dividendos / Mês</div>
+                    <div class="card-value" id="dash-dividendos">R$ 0,00</div>
+                    <div class="card-sub" id="dash-divdia"></div>
+                </div>
+                <div class="card summary-card accent-purple">
+                    <div class="card-label">DY Médio</div>
+                    <div class="card-value" id="dash-dy">0,00%</div>
+                    <div class="card-sub">Ponderado por valor</div>
+                </div>
+                <div class="card summary-card accent-amber">
+                    <div class="card-label">Renda Fixa / Mês</div>
+                    <div class="card-value" id="dash-rendafixa">R$ 0,00</div>
+                    <div class="card-sub" id="dash-rfpct"></div>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2 class="section-title">Composição da Carteira</h2>
+                <div class="dash-charts-grid">
+                    <div class="chart-container chart-pie-container">
+                        <canvas id="chartComposicao"></canvas>
+                    </div>
+                    <div class="composition-legend" id="compositionLegend"></div>
+                </div>
+            </section>
+
+            <section class="charts-grid">
+                <div class="card chart-card">
+                    <h2 class="section-title">Evolução Patrimonial</h2>
+                    <div class="chart-container"><canvas id="chartDashPatrimonio"></canvas></div>
+                </div>
+                <div class="card chart-card">
+                    <h2 class="section-title">Dividendos Recebidos</h2>
+                    <div class="chart-container"><canvas id="chartDashDividendos"></canvas></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- FIIs -->
+        <div id="page-fiis" class="page">
+            <section class="summary-cards">
+                <div class="card summary-card"><div class="card-label">Patrimônio FIIs</div><div class="card-value" id="fiis-patrimonio">R$ 0,00</div><div class="card-sub" id="fiis-variacao"></div></div>
+                <div class="card summary-card"><div class="card-label">Dividendos / Mês</div><div class="card-value" id="fiis-dividendos">R$ 0,00</div><div class="card-sub" id="fiis-divdia"></div></div>
+                <div class="card summary-card"><div class="card-label">DY Médio</div><div class="card-value" id="fiis-dy">0,00%</div><div class="card-sub">Ponderado por valor</div></div>
+                <div class="card summary-card"><div class="card-label">Qtd. Ativos</div><div class="card-value" id="fiis-qtd">0</div><div class="card-sub" id="fiis-cotas">0 cotas</div></div>
+            </section>
+            <section class="card">
+                <h2 class="section-title">Adicionar Fundo Imobiliário</h2>
+                <form class="add-form" data-category="fiis">
+                    <div class="form-group"><label>Ticker</label><input type="text" class="input-ticker" placeholder="Ex: MXRF11" maxlength="8" required></div>
+                    <div class="form-group"><label>Cotas</label><input type="number" class="input-qty" placeholder="Ex: 100" min="1" required></div>
+                    <div class="form-group"><label>Preço Médio (R$)</label><input type="number" class="input-price" placeholder="Ex: 10.50" min="0.01" step="0.01" required></div>
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
+                </form>
+                <div class="form-error"></div>
+            </section>
+            <section class="card">
+                <div class="section-header"><h2 class="section-title">Meus FIIs</h2><button class="btn btn-sm btn-outline btn-export" data-category="fiis">Exportar CSV</button></div>
+                <div class="table-wrapper">
+                    <table><thead><tr><th>Ticker</th><th>Cotas</th><th>PM</th><th>Preço Atual</th><th>Variação</th><th>Valor Total</th><th>Div./Mês</th><th>DY (12m)</th><th>Ações</th></tr></thead>
+                    <tbody id="tbody-fiis"><tr class="empty-row"><td colspan="9">Nenhum FII na carteira.</td></tr></tbody></table>
+                </div>
+            </section>
+            <section class="charts-grid">
+                <div class="card chart-card"><h2 class="section-title">Evolução Patrimonial - FIIs</h2><div class="chart-container"><canvas id="chartFiisPatrimonio"></canvas></div></div>
+                <div class="card chart-card"><h2 class="section-title">Dividendos - FIIs</h2><div class="chart-container"><canvas id="chartFiisDividendos"></canvas></div></div>
+            </section>
+        </div>
+
+        <!-- AÇÕES -->
+        <div id="page-acoes" class="page">
+            <section class="summary-cards">
+                <div class="card summary-card"><div class="card-label">Patrimônio Ações</div><div class="card-value" id="acoes-patrimonio">R$ 0,00</div><div class="card-sub" id="acoes-variacao"></div></div>
+                <div class="card summary-card"><div class="card-label">Dividendos / Mês</div><div class="card-value" id="acoes-dividendos">R$ 0,00</div><div class="card-sub" id="acoes-divdia"></div></div>
+                <div class="card summary-card"><div class="card-label">DY Médio</div><div class="card-value" id="acoes-dy">0,00%</div><div class="card-sub">Ponderado por valor</div></div>
+                <div class="card summary-card"><div class="card-label">Qtd. Ativos</div><div class="card-value" id="acoes-qtd">0</div><div class="card-sub" id="acoes-cotas">0 cotas</div></div>
+            </section>
+            <section class="card">
+                <h2 class="section-title">Adicionar Ação</h2>
+                <form class="add-form" data-category="acoes">
+                    <div class="form-group"><label>Ticker</label><input type="text" class="input-ticker" placeholder="Ex: PETR4" maxlength="8" required></div>
+                    <div class="form-group"><label>Cotas</label><input type="number" class="input-qty" placeholder="Ex: 50" min="1" required></div>
+                    <div class="form-group"><label>Preço Médio (R$)</label><input type="number" class="input-price" placeholder="Ex: 35.00" min="0.01" step="0.01" required></div>
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
+                </form>
+                <div class="form-error"></div>
+            </section>
+            <section class="card">
+                <div class="section-header"><h2 class="section-title">Minhas Ações</h2><button class="btn btn-sm btn-outline btn-export" data-category="acoes">Exportar CSV</button></div>
+                <div class="table-wrapper">
+                    <table><thead><tr><th>Ticker</th><th>Cotas</th><th>PM</th><th>Preço Atual</th><th>Variação</th><th>Valor Total</th><th>Div./Mês</th><th>DY (12m)</th><th>Ações</th></tr></thead>
+                    <tbody id="tbody-acoes"><tr class="empty-row"><td colspan="9">Nenhuma ação na carteira.</td></tr></tbody></table>
+                </div>
+            </section>
+            <section class="charts-grid">
+                <div class="card chart-card"><h2 class="section-title">Evolução Patrimonial - Ações</h2><div class="chart-container"><canvas id="chartAcoesPatrimonio"></canvas></div></div>
+                <div class="card chart-card"><h2 class="section-title">Dividendos - Ações</h2><div class="chart-container"><canvas id="chartAcoesDividendos"></canvas></div></div>
+            </section>
+        </div>
+
+        <!-- RENDA FIXA -->
+        <div id="page-rendafixa" class="page">
+            <section class="summary-cards">
+                <div class="card summary-card"><div class="card-label">Total Investido</div><div class="card-value" id="rf-total">R$ 0,00</div><div class="card-sub" id="rf-sub"></div></div>
+                <div class="card summary-card"><div class="card-label">Rendimento / Mês</div><div class="card-value" id="rf-rendimento">R$ 0,00</div><div class="card-sub" id="rf-renddia"></div></div>
+                <div class="card summary-card"><div class="card-label">Taxa Média</div><div class="card-value" id="rf-taxa">0,00%</div><div class="card-sub">a.a. ponderada</div></div>
+                <div class="card summary-card"><div class="card-label">Qtd. Títulos</div><div class="card-value" id="rf-qtd">0</div><div class="card-sub" id="rf-tipos"></div></div>
+            </section>
+            <section class="card">
+                <h2 class="section-title">Adicionar Título de Renda Fixa</h2>
+                <form class="add-form" id="formRendaFixa">
+                    <div class="form-group"><label>Nome do Título</label><input type="text" id="rf-nome" placeholder="Ex: CDB Banco XYZ" required></div>
+                    <div class="form-group">
+                        <label>Tipo</label>
+                        <select id="rf-tipo" required>
+                            <option value="">Selecione</option>
+                            <option value="CDB">CDB</option>
+                            <option value="LCI">LCI</option>
+                            <option value="LCA">LCA</option>
+                            <option value="Tesouro Selic">Tesouro Selic</option>
+                            <option value="Tesouro IPCA+">Tesouro IPCA+</option>
+                            <option value="Tesouro Prefixado">Tesouro Prefixado</option>
+                            <option value="CRI">CRI</option>
+                            <option value="CRA">CRA</option>
+                            <option value="Debênture">Debênture</option>
+                            <option value="Outro">Outro</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Valor Investido (R$)</label><input type="number" id="rf-valor" placeholder="Ex: 10000" min="0.01" step="0.01" required></div>
+                    <div class="form-group"><label>Taxa (% a.a.)</label><input type="number" id="rf-taxaInput" placeholder="Ex: 13.5" min="0.01" step="0.01" required></div>
+                    <div class="form-group"><label>Vencimento</label><input type="date" id="rf-vencimento" required></div>
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
+                </form>
+                <div class="form-error" id="rf-error"></div>
+            </section>
+            <section class="card">
+                <div class="section-header"><h2 class="section-title">Meus Títulos</h2><button class="btn btn-sm btn-outline" id="btnExportRF">Exportar CSV</button></div>
+                <div class="table-wrapper">
+                    <table><thead><tr><th>Nome</th><th>Tipo</th><th>Valor</th><th>Taxa a.a.</th><th>Rend./Mês</th><th>Vencimento</th><th>Dias p/ Venc.</th><th>Ações</th></tr></thead>
+                    <tbody id="tbody-rf"><tr class="empty-row"><td colspan="8">Nenhum título de renda fixa.</td></tr></tbody></table>
+                </div>
+            </section>
+            <section class="charts-grid">
+                <div class="card chart-card"><h2 class="section-title">Distribuição por Tipo</h2><div class="chart-container"><canvas id="chartRFTipo"></canvas></div></div>
+                <div class="card chart-card"><h2 class="section-title">Rendimentos Mensais</h2><div class="chart-container"><canvas id="chartRFRend"></canvas></div></div>
+            </section>
+        </div>
+
+        <!-- IA DE APORTE -->
+        <div id="page-ia" class="page">
+            <section class="card ia-header-card">
+                <div class="ia-header">
+                    <div>
+                        <h2 class="section-title" style="margin-bottom:4px">Assistente de Aporte</h2>
+                        <p class="ia-subtitle">Informe o valor dos dividendos recebidos e receba uma recomendação inteligente de onde aportar.</p>
+                    </div>
+                </div>
+                <form id="formIA" class="ia-form">
+                    <div class="form-group">
+                        <label>Valor disponível para aporte (R$)</label>
+                        <input type="number" id="ia-valor" placeholder="Ex: 500.00" min="0.01" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Perfil de risco</label>
+                        <select id="ia-perfil">
+                            <option value="conservador">Conservador</option>
+                            <option value="moderado" selected>Moderado</option>
+                            <option value="arrojado">Arrojado</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-ia">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v2h2a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V10a2 2 0 012-2h2V6a4 4 0 014-4z"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg>
+                        Gerar Recomendação
+                    </button>
+                </form>
+            </section>
+            <section id="iaResult" class="ia-result" style="display:none"></section>
+        </div>
+    </main>
+
+    <!-- MODALS -->
+    <div id="configModal" class="modal-overlay" style="display:none">
+        <div class="modal">
+            <h3>Configuração da API</h3>
+            <p class="config-info">Para buscar cotações em tempo real, é necessário um token gratuito da <strong>brapi.dev</strong>.</p>
+            <ol class="config-steps">
+                <li>Acesse <a href="https://brapi.dev" target="_blank" rel="noopener">brapi.dev</a></li>
+                <li>Crie uma conta gratuita</li>
+                <li>Copie seu token e cole abaixo</li>
+            </ol>
+            <form id="formConfig">
+                <div class="form-group"><label for="inputToken">Token da API</label><input type="text" id="inputToken" placeholder="Cole seu token aqui"></div>
+                <div class="form-group"><label for="inputClaudeKey">Chave API Claude (opcional, para IA)</label><input type="password" id="inputClaudeKey" placeholder="sk-ant-..."></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" id="btnCancelConfig">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal-overlay" style="display:none">
+        <div class="modal">
+            <h3>Editar Ativo</h3>
+            <form id="formEdit">
+                <input type="hidden" id="editTicker"><input type="hidden" id="editCategory">
+                <div class="form-group"><label>Quantidade</label><input type="number" id="editQty" min="1" required></div>
+                <div class="form-group"><label>Preço Médio (R$)</label><input type="number" id="editPrice" min="0.01" step="0.01" required></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" id="btnCancelEdit">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="editRFModal" class="modal-overlay" style="display:none">
+        <div class="modal">
+            <h3>Editar Título</h3>
+            <form id="formEditRF">
+                <input type="hidden" id="editRFId">
+                <div class="form-group"><label>Valor Investido (R$)</label><input type="number" id="editRFValor" min="0.01" step="0.01" required></div>
+                <div class="form-group"><label>Taxa (% a.a.)</label><input type="number" id="editRFTaxa" min="0.01" step="0.01" required></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" id="btnCancelEditRF">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <!-- Install PWA banner -->
+    <div id="installBanner" class="install-banner" style="display:none">
+        <span>Instale o app na sua tela inicial!</span>
+        <div class="install-actions">
+            <button class="btn btn-sm btn-primary" id="btnInstall">Instalar</button>
+            <button class="btn btn-sm btn-outline" id="btnDismissInstall">Depois</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', e => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installBanner').style.display = 'flex';
+        });
+
+        document.getElementById('btnInstall').addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const result = await deferredPrompt.userChoice;
+            deferredPrompt = null;
+            document.getElementById('installBanner').style.display = 'none';
+        });
+
+        document.getElementById('btnDismissInstall').addEventListener('click', () => {
+            document.getElementById('installBanner').style.display = 'none';
+        });
+
+        window.addEventListener('appinstalled', () => {
+            document.getElementById('installBanner').style.display = 'none';
+        });
+    </script>
+</body>
+</html>
