@@ -4,6 +4,9 @@ const CLAUDE_KEY = 'carteira-inv-claude';
 const RF_KEY = 'carteira-inv-rf';
 const CORS_PROXY = 'https://corsproxy.io/?';
 
+const CDI_TYPES = ['CDB', 'LCI', 'LCA'];
+let currentCDI = 0;
+
 const state = {
     fiis: loadData('fiis'),
     acoes: loadData('acoes'),
@@ -271,7 +274,7 @@ function updateRFUI() {
                 <td><strong>${item.nome}</strong></td>
                 <td><span class="rf-type-badge">${item.tipo}</span></td>
                 <td>${fmt(item.valor)}</td>
-                <td>${pct(item.taxa)}</td>
+                <td>${item.cdiPct ? `${pct(item.cdiPct)} CDI <span style="color:var(--text-secondary);font-size:0.75rem">(${pct(item.taxa)})</span>` : pct(item.taxa)}</td>
                 <td class="positive">${fmt(rend)}</td>
                 <td>${venc.toLocaleDateString('pt-BR')}</td>
                 <td><span class="${dias < 30 ? 'negative' : ''}">${dias}d</span></td>
@@ -508,6 +511,53 @@ document.querySelectorAll('.add-form[data-category]').forEach(form => {
     });
 });
 
+// ─── CDI ───
+async function fetchCDI() {
+    try {
+        const r = await fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/1?formato=json');
+        const data = await r.json();
+        if (data?.[0]?.valor) {
+            currentCDI = parseFloat(data[0].valor.replace(',', '.'));
+            const cdiInfo = document.getElementById('rf-cdi-info');
+            if (cdiInfo) cdiInfo.textContent = `CDI atual: ${pct(currentCDI)} a.a.`;
+        }
+    } catch (e) {
+        currentCDI = 14.15;
+    }
+}
+
+document.getElementById('rf-tipo').addEventListener('change', e => {
+    const isCDI = CDI_TYPES.includes(e.target.value);
+    document.getElementById('rf-cdi-group').style.display = isCDI ? 'flex' : 'none';
+    const taxaInput = document.getElementById('rf-taxaInput');
+    const taxaGroup = document.getElementById('rf-taxa-group');
+
+    if (isCDI) {
+        taxaInput.removeAttribute('required');
+        taxaInput.readOnly = true;
+        taxaGroup.querySelector('label').textContent = 'Taxa equivalente (% a.a.)';
+        document.getElementById('rf-cdiPct').setAttribute('required', '');
+        if (currentCDI === 0) fetchCDI();
+    } else {
+        taxaInput.setAttribute('required', '');
+        taxaInput.readOnly = false;
+        taxaInput.value = '';
+        taxaGroup.querySelector('label').textContent = 'Taxa (% a.a.)';
+        document.getElementById('rf-cdiPct').removeAttribute('required');
+        document.getElementById('rf-cdiPct').value = '';
+    }
+});
+
+document.getElementById('rf-cdiPct').addEventListener('input', e => {
+    const pctVal = parseFloat(e.target.value);
+    if (pctVal && currentCDI > 0) {
+        const taxaEq = (pctVal / 100) * currentCDI;
+        document.getElementById('rf-taxaInput').value = taxaEq.toFixed(2);
+    } else {
+        document.getElementById('rf-taxaInput').value = '';
+    }
+});
+
 // ─── RENDA FIXA FORM ───
 document.getElementById('formRendaFixa').addEventListener('submit', e => {
     e.preventDefault();
@@ -517,12 +567,14 @@ document.getElementById('formRendaFixa').addEventListener('submit', e => {
     const nome = document.getElementById('rf-nome').value.trim();
     const tipo = document.getElementById('rf-tipo').value;
     const valor = parseFloat(document.getElementById('rf-valor').value);
+    const cdiPct = parseFloat(document.getElementById('rf-cdiPct').value) || null;
     const taxa = parseFloat(document.getElementById('rf-taxaInput').value);
     const vencimento = document.getElementById('rf-vencimento').value;
 
     if (!nome || !tipo || !valor || !taxa || !vencimento) { errEl.textContent = 'Preencha todos os campos.'; return; }
+    if (CDI_TYPES.includes(tipo) && !cdiPct) { errEl.textContent = 'Informe a % do CDI.'; return; }
 
-    state.rf.push({ id: Date.now().toString(), nome, tipo, valor, taxa, vencimento });
+    state.rf.push({ id: Date.now().toString(), nome, tipo, valor, taxa, vencimento, cdiPct });
     saveRF();
     updateAll();
     recordHistory();
@@ -531,6 +583,10 @@ document.getElementById('formRendaFixa').addEventListener('submit', e => {
     document.getElementById('rf-tipo').value = '';
     document.getElementById('rf-valor').value = '';
     document.getElementById('rf-taxaInput').value = '';
+    document.getElementById('rf-taxaInput').readOnly = false;
+    document.getElementById('rf-taxa-group').querySelector('label').textContent = 'Taxa (% a.a.)';
+    document.getElementById('rf-cdiPct').value = '';
+    document.getElementById('rf-cdi-group').style.display = 'none';
     document.getElementById('rf-vencimento').value = '';
     showToast(`${nome} adicionado!`);
 });
@@ -892,6 +948,7 @@ Responda em JSON com esta estrutura:
 // ─── INIT ───
 function init() {
     document.getElementById('tokenBanner').style.display = 'none';
+    fetchCDI();
     updateAll();
     if (state.fiis.length || state.acoes.length) {
         fetchAllQuotes();

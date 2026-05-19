@@ -580,6 +580,13 @@ tbody tr:last-child td { border-bottom: none; }
     color: var(--primary);
 }
 
+/* CDI INFO */
+.cdi-info {
+    font-size: 0.75rem;
+    color: var(--green);
+    margin-top: 2px;
+}
+
 /* INSTALL BANNER */
 .install-banner {
     position: fixed;
