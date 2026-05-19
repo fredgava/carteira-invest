@@ -1,8 +1,8 @@
 const STORAGE_KEY = 'carteira-inv';
 const HISTORY_KEY = 'carteira-inv-history';
-const TOKEN_KEY = 'carteira-inv-token';
 const CLAUDE_KEY = 'carteira-inv-claude';
 const RF_KEY = 'carteira-inv-rf';
+const CORS_PROXY = 'https://corsproxy.io/?';
 
 const state = {
     fiis: loadData('fiis'),
@@ -25,8 +25,6 @@ function loadHistory() {
     try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || { dates: [], fiis: [], acoes: [], rf: [], divFiis: [], divAcoes: [] }; } catch { return { dates: [], fiis: [], acoes: [], rf: [], divFiis: [], divAcoes: [] }; }
 }
 function saveHistory() { localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history)); }
-function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
-function saveToken(t) { localStorage.setItem(TOKEN_KEY, t.trim()); }
 function getClaudeKey() { return localStorage.getItem(CLAUDE_KEY) || ''; }
 function saveClaudeKey(k) { localStorage.setItem(CLAUDE_KEY, k.trim()); }
 
@@ -51,75 +49,93 @@ document.querySelectorAll('.tab').forEach(tab => {
     });
 });
 
-// ─── TOKEN BANNER ───
-function updateTokenBanner() {
-    document.getElementById('tokenBanner').style.display = getToken() ? 'none' : 'flex';
-}
-
+// ─── CONFIG ───
 function openConfigModal() {
-    document.getElementById('inputToken').value = getToken();
     document.getElementById('inputClaudeKey').value = getClaudeKey();
     document.getElementById('configModal').style.display = 'flex';
 }
 
 document.getElementById('btnConfig').addEventListener('click', openConfigModal);
-document.getElementById('btnSetupToken').addEventListener('click', openConfigModal);
 document.getElementById('btnCancelConfig').addEventListener('click', () => { document.getElementById('configModal').style.display = 'none'; });
 document.getElementById('configModal').addEventListener('click', e => { if (e.target === e.currentTarget) e.target.style.display = 'none'; });
 
 document.getElementById('formConfig').addEventListener('submit', e => {
     e.preventDefault();
-    const token = document.getElementById('inputToken').value.trim();
     const claude = document.getElementById('inputClaudeKey').value.trim();
-    if (token) saveToken(token);
     if (claude) saveClaudeKey(claude);
     document.getElementById('configModal').style.display = 'none';
-    updateTokenBanner();
     showToast('Configurações salvas!');
-    fetchAllQuotes();
 });
 
-// ─── API ───
+// ─── API (Yahoo Finance) ───
+function yahooTicker(ticker) {
+    return ticker.endsWith('.SA') ? ticker : ticker + '.SA';
+}
+
+async function fetchYahoo(url) {
+    const r = await fetch(CORS_PROXY + encodeURIComponent(url));
+    if (!r.ok) throw new Error('Erro na requisição');
+    return r.json();
+}
+
 async function fetchQuote(ticker) {
-    const token = getToken();
-    if (!token) throw new Error('Configure seu token da brapi.dev primeiro.');
-    const r = await fetch(`https://brapi.dev/api/quote/${ticker}?token=${token}&fundamental=true`);
-    const d = await r.json();
-    if (d.error) throw new Error(d.message || `Erro: ${ticker}`);
-    if (!d.results?.length) throw new Error(`${ticker} não encontrado`);
-    return d.results[0];
+    const yt = yahooTicker(ticker);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yt}?interval=1d&range=1y&events=div`;
+    const data = await fetchYahoo(url);
+    const result = data.chart?.result?.[0];
+    if (!result) throw new Error(`${ticker} não encontrado`);
+
+    const meta = result.meta;
+    const price = meta.regularMarketPrice;
+    const divEvents = result.events?.dividends || {};
+    const dividends = Object.values(divEvents);
+
+    return {
+        symbol: ticker,
+        regularMarketPrice: price,
+        dividends: dividends,
+    };
 }
 
 async function fetchAllQuotes() {
     const allTickers = [...state.fiis, ...state.acoes].map(a => a.ticker);
-    if (!allTickers.length || !getToken()) return;
+    if (!allTickers.length) return;
 
-    try {
-        const r = await fetch(`https://brapi.dev/api/quote/${allTickers.join(',')}?token=${getToken()}&fundamental=true`);
-        const d = await r.json();
-        if (d.error) { showToast(d.message || 'Erro na API', 'error'); return; }
-        d.results?.forEach(res => { state.quotes[res.symbol] = res; });
+    let success = 0;
+    const promises = allTickers.map(async ticker => {
+        try {
+            const quote = await fetchQuote(ticker);
+            state.quotes[ticker] = quote;
+            success++;
+        } catch (err) {
+            console.warn(`Erro ao buscar ${ticker}:`, err);
+        }
+    });
+
+    await Promise.all(promises);
+
+    if (success > 0) {
         document.getElementById('lastUpdate').textContent = `Última atualização: ${new Date().toLocaleTimeString('pt-BR')}`;
         updateAll();
         recordHistory();
-    } catch (err) {
-        showToast('Erro ao buscar cotações.', 'error');
+    } else if (allTickers.length > 0) {
+        showToast('Erro ao buscar cotações. Tente novamente.', 'error');
     }
 }
 
 // ─── DIVIDENDS ───
 function getMonthlyDiv(ticker) {
     const q = state.quotes[ticker];
-    if (!q?.dividendsData?.cashDividends?.length) return 0;
+    if (!q?.dividends?.length) return 0;
     const now = new Date();
     const ago = new Date(now);
     ago.setFullYear(ago.getFullYear() - 1);
-    const recent = q.dividendsData.cashDividends.filter(d => {
-        const dt = new Date(d.paymentDate || d.approvedDate);
-        return dt >= ago && dt <= now;
-    });
+    const nowTs = now.getTime() / 1000;
+    const agoTs = ago.getTime() / 1000;
+
+    const recent = q.dividends.filter(d => d.date >= agoTs && d.date <= nowTs);
     if (!recent.length) return 0;
-    return recent.reduce((s, d) => s + (d.rate || 0), 0) / 12;
+    return recent.reduce((s, d) => s + (d.amount || 0), 0) / 12;
 }
 
 function getDY(ticker) {
@@ -461,8 +477,6 @@ document.querySelectorAll('.add-form[data-category]').forEach(form => {
         const errEl = form.closest('.card').querySelector('.form-error');
         errEl.textContent = '';
 
-        if (!getToken()) { errEl.textContent = 'Configure seu token primeiro (engrenagem no topo).'; return; }
-
         const ticker = form.querySelector('.input-ticker').value.trim().toUpperCase();
         const qty = parseInt(form.querySelector('.input-qty').value);
         const price = parseFloat(form.querySelector('.input-price').value);
@@ -632,7 +646,6 @@ function downloadCSV(csv, name) {
 
 // ─── REFRESH ───
 document.getElementById('btnRefresh').addEventListener('click', () => {
-    if (!getToken()) { openConfigModal(); return; }
     fetchAllQuotes();
     showToast('Atualizando cotações...');
 });
@@ -878,7 +891,7 @@ Responda em JSON com esta estrutura:
 
 // ─── INIT ───
 function init() {
-    updateTokenBanner();
+    document.getElementById('tokenBanner').style.display = 'none';
     updateAll();
     if (state.fiis.length || state.acoes.length) {
         fetchAllQuotes();
